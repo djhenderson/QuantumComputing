@@ -1,13 +1,32 @@
 # Quintuple
-This is an implementation of IBM's Quantum Experience in simulation; a 5-qubit quantum computer with a limited set of gates "the world’s first quantum computing platform delivered via the IBM Cloud". Their implementation is available at [http://www.research.ibm.com/quantum/](http://www.research.ibm.com/quantum/).
+This is an implementation of IBM's Quantum Experience in simulation; a
+5-qubit quantum computer with a limited set of gates "the world’s first
+quantum computing platform delivered via the IBM Cloud". Their
+implementation is available at
+[http://www.research.ibm.com/quantum/](http://www.research.ibm.com/quantum/).
 
-This code allows you to execute code printed from the Quantum Composer in IBM's syntax. It is much easier to dig into the internals of how the quantum computer computes by seeing and tracing the linear algebra representation of gates and states and their interactions as desired–for IBM's examples or for one's own code.
+This code allows you to execute code printed from the Quantum Composer in
+IBM's syntax. It is much easier to dig into the internals of how the quantum
+computer computes by seeing and tracing the linear algebra representation of
+gates and states and their interactions as desired–for IBM's examples or for
+one's own code.
 
-100% of the examples on the IBM tutorial are provided here, tested for and supported, and many addition tests and examples are provided. In fact, the implementation of the 5-qubit quantum computer simulator is only 675 lines, with approximately twice as many lines of test programs and examples provided.
+100% of the examples on the IBM tutorial are provided here, tested for and
+supported, and many addition tests and examples are provided. In fact, the
+implementation of the 5-qubit quantum computer simulator is only 675 lines,
+with approximately twice as many lines of test programs and examples provided.
 
-Check out any of the test functions for example usage, and the ```Programs``` class contains many example programs in IBM's syntax all available in one place.
+Check out any of the test functions for example usage, and the
+```Programs``` class contains many example programs in IBM's syntax all
+available in one place.
 
-If you make use of this work, please cite my paper available on the physics arXiv as [Quintuple: a Python 5-qubit quantum computer simulator to facilitate cloud quantum computing](http://arxiv.org/abs/1606.09225). For the making of story of this code, along with some pointers to resources on quantum computation, [check out my blog post](https://codexgalactic.com/2016/05/21/5-qubit-quantum-computing-simulator/).
+If you make use of this work, please cite my paper available on the physics
+arXiv as [Quintuple: a Python 5-qubit quantum computer simulator to
+facilitate cloud quantum computing](http://arxiv.org/abs/1606.09225). For
+the making of story of this code, along with some pointers to resources on
+quantum computation, [check out my blog
+post](https://codexgalactic.com/2016/05/21/5-qubit-quantum-computing-simulator
+/).
 
 
 # Example usage (with IBM's syntax)
@@ -28,7 +47,7 @@ Probability.pretty_print_probabilities(qc.qubits.get_qubit_named("q0").get_state
 This will print
 ```
 |psi>=0.70710678118654724|000>+-0.70710678118654724|111>
-Pr(|000>)=0.500000; Pr(|111>)=0.500000; 
+Pr(|000>)=0.500000; Pr(|111>)=0.500000;
 ```
 
 Or, using the swap Qubits example IBM tutorial Section IV, Page 2
@@ -50,16 +69,19 @@ Probability.pretty_print_probabilities(qc.qubits.get_qubit_named("q2").get_state
 will print
 ```
 |psi>=|10>
-Pr(|10>)=1.000000; 
+Pr(|10>)=1.000000;
 ```
 
 We'll continue with this example in pure python below.
 
-Note: using IBM's measurment code ```measure q[0];``` will actually collapse the state, but for convenience the internal state before collapse is stored in qubit.get_noop(). Nature doesn't give this to us, but I can can give it to you!
+Note: using IBM's measurment code ```measure q[0];``` will actually collapse the state,
+but for convenience the internal state before collapse is stored in qubit.get_noop().
+Nature doesn't give this to us, but I can can give it to you!
 
 
-# Pure python quantum computing machinery 
-Quantum computing operations can also be done in pure python, either with the QuantumComputer machinery or by directly manipulating gates.
+# Pure python quantum computing machinery
+Quantum computing operations can also be done in pure python,
+either with the QuantumComputer machinery or by directly manipulating gates.
 ## QuantumComputer machinery
 
 ```
@@ -80,12 +102,16 @@ Probability.pretty_print_probabilities(qc.qubits.get_qubit_named("q1").get_state
 Will print
 ```
 |psi>=|10>
-Pr(|10>)=1.000000; 
+Pr(|10>)=1.000000;
 ```
 
 ## Working with Individual States and gates
 
-Note that states are combined by using the Kronecker product. Gates that operate on entangled states are composed from individual qubit acting gates by the Kronecker product of the gate with the Identity. See the internals of ```qc.apply_gate``` or ```qc.apply_two_qubit_gate_CNOT``` for general examples, or feel free to use them instead.
+Note that states are combined by using the Kronecker product.
+Gates that operate on entangled states are composed from individual
+qubit acting gates by the Kronecker product of the gate with the Identity.
+See the internals of ```qc.apply_gate``` or ```qc.apply_two_qubit_gate_CNOT```
+for general examples, or feel free to use them instead.
 
 ```
 # Swap Qubits example IBM tutorial Section IV, Page 2
@@ -104,10 +130,13 @@ new_state=Gate.CNOT2_01*new_state
 Probability.pretty_print_probabilities(new_state)
 ```
 
-Will print 
+Will print
 ```
 |psi>=0.99999999999999967|10>
 Pr(|10>)=1.000000;
 ```
 
- This final manner of working with the library provides the most complete mathematical understanding of what's going on. Any individual state or gate can be printed, and it is clear how entanglement is represented as this is not done under the hood in this scenario.
+This final manner of working with the library provides the most complete
+mathematical understanding of what's going on. Any individual state or gate
+can be printed, and it is clear how entanglement is represented as this is not
+done under the hood in this scenario.
