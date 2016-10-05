@@ -4,7 +4,7 @@
 
 # Author: corbett@caltech.edu
 
-from __future__ import print_function
+from __future__ import division, print_function
 
 from math import sqrt, pi, e, log
 # import exceptions
@@ -15,6 +15,30 @@ import random
 import re
 # import time
 # import unittest
+
+
+class QuantumError(Exception):
+    pass
+
+
+class CollapsedError(QuantumError):
+    pass
+
+
+class EntanglementError(QuantumError):
+    pass
+
+
+class NotEntangledError(QuantumError):
+    pass
+
+
+class QubitsOrderError(QuantumError):
+    pass
+
+
+class StateNotSeparableError(QuantumError):
+    pass
 
 
 class Gate(object):
@@ -162,8 +186,8 @@ class State(object):
             for state in separated_state:
                 State.string_from_state(state)
             return True
-        except StateNotSeparableException as e:
-            print("\nException:", e)
+        except StateNotSeparableError as e:
+            print("\nStateNotSeparableError:", e)
             return False
 
     @staticmethod
@@ -193,7 +217,7 @@ class State(object):
     @staticmethod
     def state_from_string(qubit_state_string):
         if not all(x in '01' for x in qubit_state_string):
-            raise Exception("Description must be a string in binary")
+            raise ValueError("Description must be a string in binary")
         state = None
         for qubit in qubit_state_string:
             if qubit == '0':
@@ -216,7 +240,7 @@ class State(object):
             elif np.allclose(state, State.one_state):
                 desc += '1'
             else:
-                raise StateNotSeparableException("State is not separable")
+                raise StateNotSeparableError("State is not separable")
         return desc
 
     @staticmethod
@@ -232,8 +256,10 @@ class State(object):
             idx_state = list(qubit_state.flat).index(1)
             add_factor = 0
             size = qubit_state.shape[0]
+            # print("DEBUG: size is", size)
             while(len(separated_state) < n_entangled):
-                size = size / 2
+                size = size // 2
+                # print("DEBUG: size is now", size)
                 if idx_state < (add_factor + size):
                     separated_state += [State.zero_state]
                     add_factor += 0
@@ -249,7 +275,7 @@ class State(object):
                 if np.allclose(candidate_state, qubit_state):
                     return separated_state
             # TODO: more general separation methods
-            raise StateNotSeparableException("TODO: Entangled qubits not represented yet in quantum computer implementation. Can currently do manual calculations; see TestBellState for Examples")
+            raise StateNotSeparableError("TODO: Entangled qubits not represented yet in quantum computer implementation. Can currently do manual calculations; see TestBellState for Examples")
 
     @staticmethod
     def measure(state):
@@ -270,7 +296,13 @@ class State(object):
 
     @staticmethod
     def get_bloch(state):
-        return np.array((Probability.expectation_x(state), Probability.expectation_y(state), Probability.expectation_z(state)))
+        return np.array(
+            (
+                Probability.expectation_x(state),
+                Probability.expectation_y(state),
+                Probability.expectation_z(state)
+            )
+        )
 
     @staticmethod
     def pretty_print_gate_action(gate, n_qubits):
@@ -278,10 +310,6 @@ class State(object):
             sname = ('%d' * n_qubits) % s
             state = State.state_from_string(sname)
             print(sname, '->', State.string_from_state(gate * state))
-
-
-class StateNotSeparableException(Exception):
-    pass
 
 
 class Probability(object):
@@ -346,7 +374,7 @@ class QuantumRegister(object):
             state = State.zero_state
         self._entangled = [self]
         self._state = state
-        self.name = name
+        self._name = name
         self.idx = None
 
         # after a measurement set this so that we can allow no further operations.
@@ -357,9 +385,14 @@ class QuantumRegister(object):
     def num_qubits(state):
         num_qubits = log(state.shape[0], 2)
         if state.shape[1] != 1 or num_qubits not in [1, 2, 3, 4, 5]:
-            raise Exception("unrecognized state shape")
+            raise ValueError("unrecognized state shape")
         else:
             return int(num_qubits)
+
+    def get_name(self):
+        return self._name
+
+    name = property(get_name)
 
     def get_entangled(self):
         return self._entangled
@@ -369,6 +402,8 @@ class QuantumRegister(object):
         for qb in self._entangled:
             qb._state = self._state
             qb._entangled = self._entangled
+
+    entangled = property(get_entangled, set_entangled)
 
     def get_state(self):
         return self._state
@@ -380,6 +415,8 @@ class QuantumRegister(object):
             qb._entangled = self._entangled
             qb._noop = self._noop
 
+    state = property(get_state, set_state)
+
     def get_noop(self):
         return self._noop
 
@@ -387,6 +424,8 @@ class QuantumRegister(object):
         self._noop = noop
         for qb in self._entangled:
             qb._noop = noop
+
+    noop = property(get_noop, set_noop)
 
     def is_entangled(self):
         return len(self._entangled) > 1
@@ -437,7 +476,7 @@ class QuantumRegisterCollection(object):
         print("_qubits.name:", ["'%s'" % qb.name for qb in self._qubits])
         print("_qubits.idx:", [qb.idx for qb in self._qubits])
         print("_num_qubits:", self._num_qubits)
-        raise Exception("qubit %s not found" % name)
+        raise KeyError("qubit %s not found" % name)
 
     def get_quantum_registers(self):
         return self._qubits
@@ -458,7 +497,7 @@ class QuantumRegisterCollection(object):
         if self._num_qubits == 0:
             print("\nremove_quantum_register_named:")
             print("name: '%s'" % name)
-            raise RuntimeError("empty qubit collection")
+            raise ValueError("empty qubit collection")
 
     def is_in_canonical_ordering(self):
         return self.get_qubit_order() == range(self._num_qubits)
@@ -503,13 +542,7 @@ class QuantumComputer(object):
     For entangled states, qubits are always reported in alphanumerical order
     """
     def __init__(self):
-        self.qubits = QuantumRegisterCollection([
-            QuantumRegister("q0"),
-            QuantumRegister("q1"),
-            QuantumRegister("q2"),
-            QuantumRegister("q3"),
-            QuantumRegister("q4")
-        ])
+        self.reset()
 
     def reset(self):
         self.qubits = QuantumRegisterCollection([
@@ -529,7 +562,7 @@ class QuantumComputer(object):
     def get_requested_state_order(self, name):
         get_states_for = [self.qubits.get_quantum_register_containing(x.strip()) for x in name.split(', ')]
         if not QuantumRegisterCollection.is_in_increasing_order(get_states_for):
-            raise Exception("at this time, requested qubits must be in increasing order")
+            raise QubitsOrderError("at this time, requested qubits must be in increasing order")
         entangled_qubit_order = self.qubits.get_entangled_qubit_order()
 
         # # We know the idxs run range(5)
@@ -610,7 +643,7 @@ class QuantumComputer(object):
     def probabilities_equal(self, name, prob):
         get_states_for = [self.qubits.get_quantum_register_containing(x.strip()) for x in name.split(', ')]
         if not QuantumRegisterCollection.is_in_increasing_order(get_states_for):
-            raise Exception("at this time, requested qubits must be in increasing order")
+            raise QubitsOrderError("at this time, requested qubits must be in increasing order")
         entangled_qubit_order = self.qubits.get_entangled_qubit_order()
         if (len(get_states_for) == 1 and self.is_in_canonical_ordering()) or (get_states_for in entangled_qubit_order):
             return np.allclose(Probability.get_probabilities(get_states_for[0].get_state()), prob)
@@ -621,7 +654,7 @@ class QuantumComputer(object):
     def qubit_states_equal(self, name, state):
         get_states_for = [self.qubits.get_quantum_register_containing(x.strip()) for x in name.split(', ')]
         if not QuantumRegisterCollection.is_in_increasing_order(get_states_for):
-            raise Exception("at this time, requested qubits must be in increasing order")
+            raise QubitsOrderError("at this time, requested qubits must be in increasing order")
         entangled_qubit_order = self.qubits.get_entangled_qubit_order()
         if (len(get_states_for) == 1 and self.is_in_canonical_ordering()) or (get_states_for in entangled_qubit_order):
             return np.allclose(get_states_for[0].get_state(), state)
@@ -638,9 +671,9 @@ class QuantumComputer(object):
                 separated_qubit = State.separate_state(on_qubit.get_state())
                 on_qubit_idx = (on_qubit.get_entangled()).index(on_qubit)
                 return np.allclose(State.get_bloch(separated_qubit[on_qubit_idx]), coords, atol=1e-3)
-            except StateNotSeparableException as e:
-                print("\nException:", e)
-                raise Exception("Entangled measurements that cannot be separated. Not yet implemented for bloch sphere")
+            except StateNotSeparableError as e:
+                print("\nStateNotSeparableError:", e)
+                raise StateNotSeparableError("Entangled measurements that cannot be separated. Not yet implemented for bloch sphere")
 
     def apply_gate(self, gate, on_qubit_name):
         on_qubit = self.qubits.get_quantum_register_containing(on_qubit_name)
@@ -650,11 +683,11 @@ class QuantumComputer(object):
             on_qubit.set_noop([])
         if not on_qubit.is_entangled():
             if on_qubit.get_num_qubits() != 1:
-                raise Exception("This qubit is not marked as entangled but it has an entangled state")
+                raise EntanglementError("This qubit is not marked as entangled but it has an entangled state")
             on_qubit.set_state(gate * on_qubit.get_state())
         else:
             if not on_qubit.get_num_qubits() > 1:
-                raise Exception("This qubit is marked as entangled but it does not have an entangled state")
+                raise EntanglementError("This qubit is marked as entangled but it does not have an entangled state")
             n_entangled = len(on_qubit.get_entangled())
             apply_gate_to_qubit_idx = [qb.name for qb in on_qubit.get_entangled()].index(on_qubit_name)
             if apply_gate_to_qubit_idx == 0:
@@ -674,11 +707,11 @@ class QuantumComputer(object):
         first_qubit = self.qubits.get_quantum_register_containing(first_qubit_name)
         second_qubit = self.qubits.get_quantum_register_containing(second_qubit_name)
         if len(first_qubit.get_noop()) > 0 or len(second_qubit.get_noop()) > 0:
-            raise Exception("Control or target qubit has been measured previously, no more gates allowed")
+            raise CollapsedError("Control or target qubit has been measured previously, no more gates allowed")
         if not first_qubit.is_entangled() and not second_qubit.is_entangled():
             combined_state = np.kron(first_qubit.get_state(), second_qubit.get_state())
             if first_qubit.get_num_qubits() != 1 or second_qubit.get_num_qubits() != 1:
-                raise Exception("Both qubits are marked as not entangled but one or the other has an entangled state")
+                raise NotEntangledError("Both qubits are marked as not entangled but one or the other has an entangled state")
             new_state = Gate.CNOT2_01 * combined_state
             if State.is_fully_separable(new_state):
                 second_qubit.set_state(State.get_second_qubit(new_state))
@@ -701,14 +734,42 @@ class QuantumComputer(object):
             try:
                 eval_str = 'Gate.CNOT%d_%d%d' % (gate_size, control_qubit_idx, target_qubit_idx)
                 gate = eval(eval_str)
+            except StateNotSeparableError as e:
+                print("\nStateNotSeparableError:", e)
+                print("eval_str:", eval_str)
+                raise
             except Exception as e:
                 print("\nException:", e)
                 print("eval_str:", eval_str)
-                raise Exception("Unrecognized combination of number of qubits")
+                raise
 
             try:
                 first_qubit.set_state(gate * combined_state)
-            except (NameError, TypeError) as e:
+            except NameError as e:
+                print("\nNameError:", e)
+                print("eval_str:", eval_str)
+                print("gate:", type(gate), gate)
+                print("combined_state:", type(combined_state), combined_state)
+                raise
+            except TypeError as e:
+                print("\nTypeError:", e)
+                print("eval_str:", eval_str)
+                print("gate:", type(gate), gate)
+                print("combined_state:", type(combined_state), combined_state)
+                raise
+            except StateNotSeparableError as e:
+                print("\nStateNotSeparableError:", e)
+                print("eval_str:", eval_str)
+                print("gate:", type(gate), gate)
+                print("combined_state:", type(combined_state), combined_state)
+                raise
+            except QubitsOrderError as e:
+                print("\nQubitsOrderError:", e)
+                print("eval_str:", eval_str)
+                print("gate:", type(gate), gate)
+                print("combined_state:", type(combined_state), combined_state)
+                raise
+            except Exception as e:
                 print("\nException:", e)
                 print("eval_str:", eval_str)
                 print("gate:", type(gate), gate)
@@ -771,6 +832,14 @@ class QuantumComputer(object):
             # Now running the code
             try:
                 exec(l, globals(), locals())
+            except StateNotSeparableError as e:
+                print("\nStateNotSeparableError:", e)
+                print("l:", l)
+                raise
+            except QubitsOrderError as e:
+                print("\nQubitsOrderError:", e)
+                print("l:", l)
+                raise
             except Exception as e:
                 print("\nException:", e)
                 print("l:", l)
